@@ -1,0 +1,14 @@
+{
+  "database": {
+    "type": "sqlite",
+    "connection": {
+      "filename": "inked.db",
+      "database": "inked"
+    }
+  },
+  "defaultFormat": "md",
+  "storage": {
+    "draftsPath": "./drafts",
+    "outputPath": "./output"
+  }
+}
