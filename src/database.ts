@@ -59,37 +59,14 @@ class DatabaseManager {
           // Create FTS5 virtual table for search
           this.db!.run(`
             CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-              content,
-              content_rowid UNINDEXED,
-              content='memories',
-              content_rowid='id'
+              content
             )
           `, (err) => {
             if (err) {
               reject(err);
               return;
             }
-
-            // Create triggers to keep FTS table in sync
-            this.db!.run(`
-              CREATE TRIGGER IF NOT EXISTS memories_fts_insert AFTER INSERT ON memories BEGIN
-                INSERT INTO memories_fts(rowid, content) VALUES (new.id, '');
-              END
-            `, (err) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-
-              this.db!.run(`
-                CREATE TRIGGER IF NOT EXISTS memories_fts_delete AFTER DELETE ON memories BEGIN
-                  DELETE FROM memories_fts WHERE rowid = old.id;
-                END
-              `, (err) => {
-                if (err) reject(err);
-                else resolve();
-              });
-            });
+            resolve();
           });
         });
       });
@@ -100,6 +77,7 @@ class DatabaseManager {
     const encryptedContent = await cryptoManager.encrypt(content);
     
     return new Promise((resolve, reject) => {
+      // Insert into main table
       const stmt = this.db!.prepare('INSERT INTO memories (encrypted_content) VALUES (?)');
       const self = this;
       stmt.run([encryptedContent], function(err) {
@@ -110,9 +88,9 @@ class DatabaseManager {
         
         const insertedId = this.lastID;
         
-        // Update FTS table with decrypted content for searching
-        const updateStmt = self.db!.prepare('UPDATE memories_fts SET content = ? WHERE rowid = ?');
-        updateStmt.run([content, insertedId], (err: any) => {
+        // Insert into FTS table with the content for searching
+        const ftsStmt = self.db!.prepare('INSERT INTO memories_fts (rowid, content) VALUES (?, ?)');
+        ftsStmt.run([insertedId, content], (err: any) => {
           if (err) reject(err);
           else resolve(insertedId);
         });
@@ -125,9 +103,10 @@ class DatabaseManager {
       const sql = `
         SELECT m.id, m.encrypted_content, m.created_at
         FROM memories m
-        JOIN memories_fts fts ON m.id = fts.rowid
-        WHERE memories_fts MATCH ?
-        ORDER BY bm25(memories_fts)
+        WHERE m.id IN (
+          SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?
+        )
+        ORDER BY m.id DESC
         LIMIT ?
       `;
 
@@ -157,12 +136,26 @@ class DatabaseManager {
 
   async deleteMemory(id: number): Promise<boolean> {
     return new Promise((resolve, reject) => {
+      const self = this;
+      // Delete from main table first
       this.db!.run('DELETE FROM memories WHERE id = ?', [id], function(err) {
         if (err) {
           reject(err);
           return;
         }
-        resolve(this.changes > 0);
+        
+        const deleted = this.changes > 0;
+        
+        if (deleted) {
+          // Delete from FTS table
+          const ftsStmt = self.db!.prepare('DELETE FROM memories_fts WHERE rowid = ?');
+          ftsStmt.run([id], (err: any) => {
+            if (err) reject(err);
+            else resolve(true);
+          });
+        } else {
+          resolve(false);
+        }
       });
     });
   }
