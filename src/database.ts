@@ -124,7 +124,51 @@ class DatabaseManager {
 
   async searchMemories(query: string, limit: number = 3): Promise<Memory[]> {
     return new Promise(async (resolve, reject) => {
-      const sql = `
+      // Special case: if query is "ALL", return all memories (up to reasonable limit)
+      if (query.toUpperCase() === 'ALL') {
+        const sql = `
+          SELECT id, encrypted_content, created_at
+          FROM memories
+          ORDER BY created_at DESC
+          LIMIT ?
+        `;
+        
+        this.db!.all(sql, [Math.min(limit * 3, 20)], async (err, rows: EncryptedMemory[]) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          try {
+            const decryptedMemories: Memory[] = [];
+            let totalTokens = 0;
+            
+            for (const row of rows) {
+              const decryptedContent = await cryptoManager.decrypt(row.encrypted_content);
+              const estimatedTokens = decryptedContent.length / 4; // Rough token estimate
+              
+              if (totalTokens + estimatedTokens > 8000) {
+                break; // Stop if we'd exceed ~8k tokens
+              }
+              
+              decryptedMemories.push({
+                id: row.id,
+                content: decryptedContent,
+                created_at: row.created_at
+              });
+              
+              totalTokens += estimatedTokens;
+            }
+            resolve(decryptedMemories);
+          } catch (decryptError) {
+            reject(decryptError);
+          }
+        });
+        return;
+      }
+
+      // Try FTS search first
+      const ftsSearch = `
         SELECT m.id, m.encrypted_content, m.created_at
         FROM memories m
         WHERE m.id IN (
@@ -134,25 +178,64 @@ class DatabaseManager {
         LIMIT ?
       `;
 
-      this.db!.all(sql, [query, limit], async (err, rows: EncryptedMemory[]) => {
-        if (err) {
-          reject(err);
-          return;
-        }
+      this.db!.all(ftsSearch, [query, limit], async (err, rows: EncryptedMemory[]) => {
+        if (err || rows.length === 0) {
+          // Fallback to LIKE search if FTS fails or returns no results
+          const likeSearch = `
+            SELECT id, encrypted_content, created_at
+            FROM memories
+            ORDER BY created_at DESC
+            LIMIT ?
+          `;
+          
+          this.db!.all(likeSearch, [limit * 2], async (fallbackErr, fallbackRows: EncryptedMemory[]) => {
+            if (fallbackErr) {
+              reject(fallbackErr);
+              return;
+            }
 
-        try {
-          const decryptedMemories: Memory[] = [];
-          for (const row of rows) {
-            const decryptedContent = await cryptoManager.decrypt(row.encrypted_content);
-            decryptedMemories.push({
-              id: row.id,
-              content: decryptedContent,
-              created_at: row.created_at
-            });
+            try {
+              const decryptedMemories: Memory[] = [];
+              const searchTerms = query.toLowerCase().split(' ');
+              
+              for (const row of fallbackRows) {
+                const decryptedContent = await cryptoManager.decrypt(row.encrypted_content);
+                const contentLower = decryptedContent.toLowerCase();
+                
+                // Check if any search term matches
+                const matches = searchTerms.some(term => contentLower.includes(term));
+                if (matches) {
+                  decryptedMemories.push({
+                    id: row.id,
+                    content: decryptedContent,
+                    created_at: row.created_at
+                  });
+                }
+                
+                if (decryptedMemories.length >= limit) break;
+              }
+              
+              resolve(decryptedMemories);
+            } catch (decryptError) {
+              reject(decryptError);
+            }
+          });
+        } else {
+          // FTS search succeeded
+          try {
+            const decryptedMemories: Memory[] = [];
+            for (const row of rows) {
+              const decryptedContent = await cryptoManager.decrypt(row.encrypted_content);
+              decryptedMemories.push({
+                id: row.id,
+                content: decryptedContent,
+                created_at: row.created_at
+              });
+            }
+            resolve(decryptedMemories);
+          } catch (decryptError) {
+            reject(decryptError);
           }
-          resolve(decryptedMemories);
-        } catch (decryptError) {
-          reject(decryptError);
         }
       });
     });

@@ -43,13 +43,13 @@ class InkedServer {
           {
             name: "read",
             description:
-              "Use this tool to search and retrieve relevant memories using simple search queries",
+              "Search and retrieve memories. Use 'ALL' to get all memories (up to 8k tokens), or search terms to find specific memories.",
             inputSchema: {
               type: "object",
               properties: {
                 search: {
                   type: "string",
-                  description: "this is your search query",
+                  description: "Search query. Use 'ALL' to retrieve all memories, or specific terms to search.",
                 },
                 topr: {
                   type: "number",
