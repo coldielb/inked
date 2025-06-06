@@ -1,28 +1,56 @@
 {
-  "name": "mcp-inked",
-  "version": "0.1.0",
-  "description": "MCP server for managing and generating long-form content through drafts",
-  "main": "build/index.js",
+  "name": "@frgmt/inked",
+  "version": "1.0.0",
+  "description": "A lightweight MCP server for encrypted memory management with Claude",
+  "main": "dist/index.js",
   "type": "module",
-  "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "start": "node build/index.js",
-    "dev": "ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "bin": {
+    "inked": "dist/index.js"
   },
-  "keywords": ["mcp", "writing", "drafts", "content-generation"],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^20.8.7",
-    "@types/pg": "^8.10.7",
-    "@types/sqlite3": "^3.1.10",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.2.2"
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "test": "npm run build && echo '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"tools/list\"}' | node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.1.0",
-    "pg": "^8.11.3",
-    "sqlite3": "^5.1.6"
+    "@frgmt/inked": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sqlite3": "^5.1.7",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "encryption",
+    "claude",
+    "model-context-protocol",
+    "anthropic",
+    "ai",
+    "llm"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coldielb/inked.git"
+  },
+  "bugs": {
+    "url": "https://github.com/coldielb/inked/issues"
+  },
+  "homepage": "https://github.com/coldielb/inked#readme",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
