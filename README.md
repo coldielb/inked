@@ -2,6 +2,10 @@
 
 A dead simple MCP server for memory management with Claude apps.
 
+<a href="https://glama.ai/mcp/servers/@coldielb/inked">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@coldielb/inked/badge" />
+</a>
+
 ## Installation
 
 ### Option 1: NPX (Recommended)
