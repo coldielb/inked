@@ -9,12 +9,16 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { db } from "./database.js";
+import { FastSemanticSearch } from "./search.js";
 import {
   ReadToolSchema,
   WriteToolSchema,
   handleReadTool,
   handleWriteTool,
 } from "./tools.js";
+
+// Global search engine instance
+let searchEngine: FastSemanticSearch;
 
 class InkedServer {
   private server: Server;
@@ -23,7 +27,7 @@ class InkedServer {
     this.server = new Server(
       {
         name: "inked",
-        version: "1.0.0",
+        version: "2.0.0",
       },
       {
         capabilities: {
@@ -43,13 +47,13 @@ class InkedServer {
           {
             name: "read",
             description:
-              "Search and retrieve memories. Use 'ALL' to get all memories (up to 8k tokens), or search terms to find specific memories.",
+              "Search and retrieve memories using powerful semantic search. Use 'ALL' to get all memories, or search terms for intelligent matching including synonyms, fuzzy matching, and context understanding.",
             inputSchema: {
               type: "object",
               properties: {
                 search: {
                   type: "string",
-                  description: "Search query. Use 'ALL' to retrieve all memories, or specific terms to search.",
+                  description: "Search query. Use 'ALL' to retrieve all memories, or any terms for semantic search.",
                 },
                 topr: {
                   type: "number",
@@ -66,7 +70,7 @@ class InkedServer {
           {
             name: "write",
             description:
-              'Add new memories or delete existing ones. Use sTool="NEW" to add, sTool="DELETE" to remove. When making new memories using a scratchpad style of writing, where not everything is a coherent sentence and can be a simple thought.',
+              'Add new memories or delete existing ones. Use sTool="NEW" to add, sTool="DELETE" to remove. Memories can be any format - structured notes, preferences, facts, or simple thoughts.',
             inputSchema: {
               type: "object",
               properties: {
@@ -101,12 +105,12 @@ class InkedServer {
         switch (name) {
           case "read": {
             const validatedArgs = ReadToolSchema.parse(args);
-            return await handleReadTool(validatedArgs);
+            return await handleReadTool(validatedArgs, searchEngine);
           }
 
           case "write": {
             const validatedArgs = WriteToolSchema.parse(args);
-            return await handleWriteTool(validatedArgs);
+            return await handleWriteTool(validatedArgs, searchEngine);
           }
 
           default:
@@ -152,11 +156,15 @@ class InkedServer {
   async start(): Promise<void> {
     try {
       await db.initialize();
+      
+      // Initialize fast semantic search engine
+      searchEngine = new FastSemanticSearch(db);
 
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
 
-      console.error("Inked MCP server started successfully");
+      console.error("Inked v2.0 MCP server started successfully");
+      console.error("✓ Fast semantic search enabled");
     } catch (error) {
       console.error("Failed to start Inked MCP server:", error);
       process.exit(1);
@@ -173,6 +181,7 @@ class InkedServer {
   }
 }
 
+// Start the server directly - no complex CLI flags needed
 const server = new InkedServer();
 server.start().catch((error) => {
   console.error("Failed to start server:", error);

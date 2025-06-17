@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { db } from './database.js';
+import { FastSemanticSearch } from './search.js';
 
 export const ReadToolSchema = z.object({
   search: z.string().min(1, 'Search query is required'),
@@ -14,12 +15,17 @@ export const WriteToolSchema = z.object({
   id: z.number().int().positive().optional()
 });
 
-export async function handleReadTool(params: z.infer<typeof ReadToolSchema>) {
+export async function handleReadTool(
+  params: z.infer<typeof ReadToolSchema>, 
+  searchEngine: FastSemanticSearch
+) {
   try {
     const { search, topr } = params;
-    const memories = await db.searchMemories(search, topr);
     
-    if (memories.length === 0) {
+    // Use semantic search engine
+    const searchResults = await searchEngine.searchMemories(search, topr);
+    
+    if (searchResults.length === 0) {
       return {
         content: [{
           type: "text" as const,
@@ -28,14 +34,21 @@ export async function handleReadTool(params: z.infer<typeof ReadToolSchema>) {
       };
     }
 
-    const resultsText = memories.map((memory, index) => 
-      `Memory ${index + 1} (ID: ${memory.id}):\n${memory.content}\nCreated: ${memory.created_at}\n`
-    ).join('\n---\n\n');
+    const resultsText = searchResults.map((memory, index) => {
+      let resultText = `Memory ${index + 1} (ID: ${memory.id}):\n${memory.content}\nCreated: ${memory.created_at}`;
+      
+      // Add relevance information
+      if (memory.relevanceScore > 0) {
+        resultText += `\nRelevance: ${memory.relevanceScore} (${memory.matchType})`;
+      }
+      
+      return resultText;
+    }).join('\n---\n\n');
 
     return {
       content: [{
         type: "text" as const,
-        text: `Found ${memories.length} relevant memories:\n\n${resultsText}`
+        text: `Found ${searchResults.length} relevant memories (semantic search):\n\n${resultsText}`
       }]
     };
   } catch (error) {
@@ -49,12 +62,16 @@ export async function handleReadTool(params: z.infer<typeof ReadToolSchema>) {
   }
 }
 
-export async function handleWriteTool(params: z.infer<typeof WriteToolSchema>) {
+export async function handleWriteTool(
+  params: z.infer<typeof WriteToolSchema>, 
+  searchEngine: FastSemanticSearch
+) {
   try {
     const { content, sTool, id } = params;
 
     if (sTool === 'NEW') {
       const newId = await db.addMemory(content);
+      
       return {
         content: [{
           type: "text" as const,
@@ -83,10 +100,10 @@ export async function handleWriteTool(params: z.infer<typeof WriteToolSchema>) {
           };
         }
       } else {
-        // Use content as search query to find memory to delete
-        const memoryToDelete = await db.findMemoryToDelete(content);
+        // Use semantic search to find memory to delete
+        const searchResults = await searchEngine.searchMemories(content, 1);
         
-        if (!memoryToDelete) {
+        if (searchResults.length === 0) {
           return {
             isError: true,
             content: [{
@@ -96,12 +113,13 @@ export async function handleWriteTool(params: z.infer<typeof WriteToolSchema>) {
           };
         }
 
+        const memoryToDelete = searchResults[0];
         const deleted = await db.deleteMemory(memoryToDelete.id);
         if (deleted) {
           return {
             content: [{
               type: "text" as const,
-              text: `Found and deleted memory (ID: ${memoryToDelete.id}):\n"${memoryToDelete.content.substring(0, 100)}${memoryToDelete.content.length > 100 ? '...' : ''}"`
+              text: `Found and deleted memory (ID: ${memoryToDelete.id}, relevance: ${memoryToDelete.relevanceScore}):\n"${memoryToDelete.content.substring(0, 100)}${memoryToDelete.content.length > 100 ? '...' : ''}"`
             }]
           };
         } else {
