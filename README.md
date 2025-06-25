@@ -9,7 +9,7 @@ A powerful MCP server for memory management with Claude apps. Fast, simple, and 
 ## Features
 
 - **Fast text search** - Lightning-fast memory retrieval by default
-- **AI-powered search** - Optional embedding-based semantic search
+- **AI-powered search** - Optional embedding-based semantic search *currently not working as of 06/25/25*
 - **AI reranking** - Experimental reranking for even better results
 - **Simple storage** - Plain text storage in SQLite (no encryption overhead)
 - **Secure** - All data stored locally in `~/.inked/`
@@ -45,6 +45,9 @@ Add to your MCP server configuration:
   }
 }
 ```
+^ Use this one. the rest wont work. need to work out some kinks
+
+============IGNORE THIS===========
 
 ### With AI embeddings (semantic search):
 ```json
@@ -124,6 +127,8 @@ Inked supports experimental embedding-based search for more nuanced memory retri
 
 *Models are cached locally and only downloaded once*
 
+=============END IGNORE===========
+
 ## Usage Guide
 
 ### Auto-Memory Setup
@@ -143,22 +148,6 @@ Add this to your Claude settings/preferences:
 - Facts that should persist across conversations
 - Insights or patterns worth remembering
 
-### Search Strategies
-
-**Text Search (default):**
-- Fast LIKE-based matching
-- Good for exact terms and phrases
-- Use `"ALL"` to see everything
-
-**Embedding Search:**
-- Semantic understanding
-- Finds related concepts even with different words
-- Better for complex queries
-
-**Embedding + Reranking:**
-- Highest quality results
-- AI-powered relevance scoring
-- Best for finding the most relevant memories
 
 ## Tools
 
